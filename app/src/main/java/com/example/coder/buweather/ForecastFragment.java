@@ -1,8 +1,10 @@
 package com.example.coder.buweather;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.preference.PreferenceManager;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
@@ -17,7 +19,6 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
-import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -31,8 +32,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * A placeholder fragment containing a simple view.
@@ -47,23 +46,14 @@ public class ForecastFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        String[] data = {
-                "Mon 6/23 - Sunny - 31/17",
-                "Tue 6/24 - Foggy - 21/8",
-                "Wed 6/25 - Cloudy - 22/17",
-                "Thurs 6/26 - Rainy - 18/11",
-                "Fri 6/27 - Foggy - 21/10",
-                "Sat 6/28 - TRAPPED IN WEATHERSTATION - 23/18",
-                "Sun 6/29 - Sunny - 20/7"
-        };
-        List<String> weekForecast = new ArrayList<String>(Arrays.asList(data));
+
 
         mForecastAdapter =
                 new ArrayAdapter<String>(
                         getActivity(),
                         R.layout.list_item_forecast,
                         R.id.list_item_forecast_textview,
-                        weekForecast );
+                        new ArrayList<String>() );
 
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
         // get a reference to a list view
@@ -87,6 +77,14 @@ public class ForecastFragment extends Fragment {
 
     }
 
+    private void queryWeather() {
+        FetchWeatherTask fetchWeatherTask = new FetchWeatherTask();
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        String location = prefs.getString(getString(R.string.pref_location_key),
+                getString(R.string.pref_location_default));
+        fetchWeatherTask.execute(location);
+    }
+
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -102,11 +100,18 @@ public class ForecastFragment extends Fragment {
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.action_refresh) {
-            FetchWeatherTask fetchWeatherTask = new FetchWeatherTask();
-            fetchWeatherTask.execute("13790");
+
+            //fetchWeatherTask.execute("13790");
+            queryWeather();
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        queryWeather();
     }
 
     public class FetchWeatherTask extends AsyncTask<String,Void, String[]> {
@@ -129,9 +134,19 @@ public class ForecastFragment extends Fragment {
          * @return rounded string representation of them
          */
         private String formatHighLows(double high, double low) {
+            double high_t = high;
+            double low_t = low;
+            SharedPreferences sharedPrefs =
+                    PreferenceManager.getDefaultSharedPreferences(getActivity());
+            String unit = sharedPrefs.getString(getString(R.string.pref_units_key), getString(R.string.pref_units_metric));
+            if (unit.equals(getString(R.string.pref_units_imperial))) {
+                high_t = (high * 1.8) + 32;
+                low_t = (low * 1.8) + 32;
+            }
+
             // Round to whole numbers, don't care about fractions
-            long roundedHigh = Math.round(high);
-            long roundedLow = Math.round(low);
+            long roundedHigh = Math.round(high_t);
+            long roundedLow = Math.round(low_t);
 
             String highLowStr = roundedHigh + "/" + roundedLow;
             return highLowStr;
@@ -163,6 +178,7 @@ public class ForecastFragment extends Fragment {
             int julianStartDay = Time.getJulianDay(System.currentTimeMillis(), dayTime.gmtoff);
             dayTime = new Time();
             String[] resultStrs = new String[numDays];
+
             for(int i = 0; i < weatherArray.length(); i++) {
                 String day;
                 String description;
